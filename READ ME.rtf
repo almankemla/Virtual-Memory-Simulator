@@ -1,0 +1,88 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2708
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;\red39\green42\blue42;}
+{\*\expandedcolortbl;;\cssrgb\c20392\c21961\c21961;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sa210\partightenfactor0
+
+\f0\fs32 \cf2 \expnd0\expndtw0\kerning0
+Virtual Memory Implementation\
+Description\'b6\
+Implementing a virtual memory system simulator. \
+Memory Organization\'b6\
+The simulator simulates a system with 1MB of physical memory. Throughout the simulator, I can access physical memory through the global variable uint8_t mem[] (an array of bytes called mem). \
+The system has a 24-bit virtual address space and memory is divided into 16KB pages.\
+Like a real computer, your page tables and data structures live in physical memory too! Both the page table and the frame table fit in a single page in memory, and I'll be responsible for placing these structures into memory.\
+Files\'b6\
+There are 7 tasks in the files that I will complete. The files that I will be changing are the following:\
+	\'95	page_splitting.h: Break down a virtual address into its components.\
+	\'95	paging.c: Initialize any necessary bookkeeping and implement address translation.\
+	\'95	page_fault.c: Implement the page fault handler.\
+	\'95	page_replacement.c: Write frame eviction.\
+	\'95	stats.c: Calculate the Average Access Time of the memory system (AAT)\
+Page Splitting\'b6\
+In page_splitting.h the vaddr_vpn and vaddr_offset functions are used to split a virtual address into its corresponding page number and page offset. \
+Initialization\'b6\
+Before I can begin accessing pages, I will need to set up the frame table (sometimes known as a reverse lookup table). After that, for every process that starts, I'll need to give it a page table.\
+For simplicity, I always place the frame table in physical frame 0 (don't forget to mark this frame as protected). Since this frame table belongs in a frame, I want to make sure that I will never evict the frame table. To do this, I set a protected bit. During your page replacement, I will need to make sure that I never choose a protected frame as your victim.\
+Since processes can start and stop any time during your computer's lifetime, I must be a little more sophisticated in choosing which frames to place their page tables in. For now, I won't worry about the logistics of choosing a frame--just call the free_frame function I'll write later in page_replacement.c. (Do I ever want to evict the frame containing the page table while the process is running?)\
+Each frame contains PAGE_SIZE bytes of data, therefore to access the start of the i-th frame in memory, I can use mem + (i * PAGE_SIZE).\
+Context Switches and the Page Table Base Register\'b6\
+Every process has its own page table. When the processor needs to perform a page lookup, it must know which page table to look in. This is where the page table base register (PTBR) comes in.\
+In the simulator, I can access the page table base register through the global variable pfn_t PTBR.\
+The PTBR holds a physical frame number (PFN), not a virtual address. \
+Reading and Writing Memory\'b6\
+The ability to allocate physical frames is useless if I cannot read or write to them. In this section, I will add functionality for reading and writing individual bytes to memory.\
+Because processes operate on a virtual memory space, it is necessary to first translate a virtual address supplied by a process into its corresponding physical address, which then will be used access the location in physical memory. This is accomplished using the page table, which contains all of a process's mappings from virtual addresses to physical addresses.\
+I use the passed-in virtual address to find the correct page table entry and the offset within the corresponding page. \
+Once I have identified the correct page table entry, I must use this to find the corresponding physical frame and its address in memory, and then perform the read or write at the proper location within the page. (Remember that the simulator's memory is represented by the mem array).\
+Entries not yet mapped are marked as invalid, and an attempt to access an invalid address should generate a page fault. I will write the page_fault() function in the next section, so for now just assume that it has successfully allocated a page for that address after it returns.\
+When performing a memory access to an address, I also make sure to set the mark the containing frame as referenced in the appropriate frame table entry, as well as marking the containing page as dirty in the process's page table. These bits will be used later when deciding on what pages should be evicted first, and if an evicted page needs to be written to the disk to preserve its content.\
+Page Fault, Eviction and Replacement\'b6\
+Recall that when a CPU encounters an invalid VPN to PFN mapping in the page table, a page fault occurs. The OS allocates a new frame for the page by either finding an empty frame or evicting a page from a frame that is in use. In this section, I will be implementing a page fault and replacement mechanism. A page fault occurs when the CPU attempts to translate a virtual address, but finds no valid entry in the page table for the VPN. To handle the page fault, I must find a frame to hold the page (call free_frame(), then update the page table and frame table to reference that frame.\
+Next, I will turn our attention to the eviction process in page_replacement.c.\
+If I ask the system for a free frame when all the frames are in use, the operating system must select an in-use frame and re-use it, evicting any existing page that was previously using the frame. Implement this logic in free_frame(). I must update the mappings from VPN to PFN in the current process' page table as well as invalidate the mapping the evicted process' page table to resolve the page fault. ` If the evicted page is dirty, I will need to swap it out and write its contents to disk. To do so, I provide a method called swap_write(), where I can pass in a pointer to the victim's pagetable entry and a pointer to the frame in memory. Similarly, after I map a new frame to a faulting page, I should check if the page has a swap entry assigned, and call swap_read() if so.\
+Swap space effectively extends the memory of your system. If physical memory is full, the operating system kicks some frames to the hard disk to accommodate others. When the swapped frames are needed again, they are restored from the disk into physical memory.\
+Finishing a Process\'b6\
+If a process finishes, I don't want it to hold onto any of the frames that it was using. I should release any frames so that other processes can use them. Also: If the process is no longer executing, can I release the page table?\
+As part of cleaning up a process, I will need to also free any swap entries that have been mapped to pages.\
+I can use swap_free() to accomplish this. Implement the function proc_cleanup() in paging.c.\
+Computing AAT\'b6\
+In the final section of this project, I will be computing some statistics.\
+	1	writes - The total number of accesses that were writes\
+	2	reads - The total number of accesses that were reads\
+	3	accesses - The total number of accesses to the memory system\
+	4	page\\_faults - Accesses that resulted in a page fault\
+	5	writes\\_to\\_disk - How many times I wrote to disk\
+	6	aat - The average access time of the memory system\
+Here are some numbers that are necessary to calculate the AAT:\
+MEMORY_READ_TIME - The time taken to access memory SET BY SIMULATOR\
+	\'95	DISK_PAGE_READ_TIME - The time taken to read a page from the disk SET BY SIMULATOR\
+	\'95	DISK_PAGE_WRITE_TIME - The time taken to write to disk SET BY SIMULATOR\
+How to Run Code\'b6\
+Compiling and Running\'b6\
+I have provided a Makefile that will run gcc for you. To compile your code with no optimizations (which I should do while developing, it will make debugging easier), run\
+    $ make\
+    $./vm-sim -i traces/<trace>.trace\
+I highly recommend starting with simple.trace. This will allow I to test the core functionality of your virtual memory simulator without worrying about context switches or writebacks, as this trace contains neither.\
+Corruption Checker\'b6\
+One challenge of working with any memory-management system is that your system can easily corrupt its own data structures if it misbehaves! Such corruption issues can easily hide until many cycles later, when they manifest as seemingly unrelated crashes later.\
+To help with detecting these issues, we've included a corruption check mode that aggressively verifies your data structures after every cycle. To use the corruption checker, run the simulator with the -c argument:\
+    $./vm-sim -c -i traces/<trace>.trace \
+Debugging Tips\'b6\
+To compile with debugging information, I must build the program with make debug:\
+    $ make clean\
+    $ make debug\
+To start your program in gdb, run:\
+    $ gdb ./vm-sim\
+Within gdb, I can run your program with the run command, see below for an example:\
+    $ (gdb) r -i traces/<trace>.trace\
+If I use the corruption checker, I can set a breakpoint on panic() and use a backtrace to discover the context in which the panic occurred:\
+    $ (gdb) break panic\
+    $ (gdb) r -i traces/<trace>.trace\
+    ! (wait for GDB to stop at the breakpoint)\
+    $ (gdb) backtrace\
+    $ (gdb) frame N    ! where N is the frame number I want to examine\
+\
+}
